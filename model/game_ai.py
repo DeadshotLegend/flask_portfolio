@@ -3,7 +3,7 @@ from random import randrange
 from datetime import date
 import os, base64
 import json
-
+from flask import jsonify
 from __init__ import app, db
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -12,33 +12,39 @@ from werkzeug.security import generate_password_hash, check_password_hash
 ''' Tutorial: https://www.sqlalchemy.org/library.html#tutorials, try to get into Python shell and follow along '''
 
 # Define the Post class to manage actions in 'posts' table,  with a relationship to 'users' table
-class Post(db.Model):
-    __tablename__ = 'posts'
+class Games(db.Model):
+    __tablename__ = 'games'
 
-    # Define the Notes schema
+    # Define the Games schema
     id = db.Column(db.Integer, primary_key=True)
-    note = db.Column(db.Text, unique=False, nullable=False)
-    image = db.Column(db.String, unique=False)
-    # Define a relationship in Notes Schema to userID who originates the note, many-to-one (many notes to one user)
-    userID = db.Column(db.Integer, db.ForeignKey('users.id'))
+    name = db.Column(db.Text, unique=False, nullable=False)
+    win = db.Column(db.String, unique=False)
+    kills = db.Column(db.Integer, unique=False)
+    deaths = db.Column(db.Integer, unique=False)
+    playdatetime = db.Column(db.Date, unique=False, nullable=False)
+    # Define a relationship in Games Schema to userID who played the game, many-to-one (many games to one user)
+    userID = db.Column(db.Integer, db.ForeignKey('gamers.id'))
 
     # Constructor of a Notes object, initializes of instance variables within object
-    def __init__(self, id, note, image):
+    def __init__(self, id, name, win, kills, deaths, playdatetime):
         self.userID = id
-        self.note = note
-        self.image = image
+        self.name = name
+        self.win = win
+        self.kills = kills
+        self.deaths = deaths
+        self.playdatetime = playdatetime
 
-    # Returns a string representation of the Notes object, similar to java toString()
+    # Returns a string representation of the Game object, similar to java toString()
     # returns string
     def __repr__(self):
-        return "Notes(" + str(self.id) + "," + self.note + "," + str(self.userID) + ")"
+        return "Game(" + str(self.id) + "," + self.name + "," + str(self.userID)+ "," + str(self.win)+ "," + str(self.kills)+ "," + str(self.deaths)+ "," + str(self.playdatetime) + ")"
 
-    # CRUD create, adds a new record to the Notes table
+    # CRUD create, adds a new record to the Games table
     # returns the object added or None in case of an error
     def create(self):
         try:
-            # creates a Notes object from Notes(db.Model) class, passes initializers
-            db.session.add(self)  # add prepares to persist person object to Notes table
+            # creates a Games object from Games(db.Model) class, passes initializers
+            db.session.add(self)  # add prepares to persist person object to Games table
             db.session.commit()  # SqlAlchemy "unit of work pattern" requires a manual commit
             return self
         except IntegrityError:
@@ -48,41 +54,36 @@ class Post(db.Model):
     # CRUD read, returns dictionary representation of Notes object
     # returns dictionary
     def read(self):
-        # encode image
-        path = app.config['UPLOAD_FOLDER']
-        file = os.path.join(path, self.image)
-        file_text = open(file, 'rb')
-        file_read = file_text.read()
-        file_encode = base64.encodebytes(file_read)
-        
         return {
             "id": self.id,
             "userID": self.userID,
-            "note": self.note,
-            "image": self.image,
-            "base64": str(file_encode)
+            "name": self.name,
+            "win": self.win,
+            "kills": self.kills,
+            "deaths": self.deaths,
+            "playdatetime": self.playdatetime
         }
 
 
-# Define the User class to manage actions in the 'users' table
+# Define the User class to manage actions in the 'gamers' table
 # -- Object Relational Mapping (ORM) is the key concept of SQLAlchemy
 # -- a.) db.Model is like an inner layer of the onion in ORM
 # -- b.) User represents data we want to store, something that is built on db.Model
 # -- c.) SQLAlchemy ORM is layer on top of SQLAlchemy Core, then SQLAlchemy engine, SQL
-class User(db.Model):
-    __tablename__ = 'users'  # table name is plural, class name is singular
+class Gamer(db.Model):
+    __tablename__ = 'gamers'  # table name is plural, class name is singular
 
-    # Define the User schema with "vars" from object
+    # Define the Gamer schema with "vars" from object
     id = db.Column(db.Integer, primary_key=True)
     _name = db.Column(db.String(255), unique=False, nullable=False)
     _uid = db.Column(db.String(255), unique=True, nullable=False)
     _password = db.Column(db.String(255), unique=False, nullable=False)
     _dob = db.Column(db.Date)
 
-    # Defines a relationship between User record and Notes table, one-to-many (one user to many notes)
-    posts = db.relationship("Post", cascade='all, delete', backref='users', lazy=True)
+    # Defines a relationship between gamer record and games table, one-to-many (one user to many games)
+    games = db.relationship("Games", cascade='all, delete', backref='gamers', lazy=True)
 
-    # constructor of a User object, initializes the instance variables within object (self)
+    # constructor of a Gamer object, initializes the instance variables within object (self)
     def __init__(self, name, uid, password="123qwerty", dob=date.today()):
         self._name = name    # variables with self prefix become part of the object, 
         self._uid = uid
@@ -153,11 +154,15 @@ class User(db.Model):
     # returns self or None on error
     def create(self):
         try:
-            # creates a person object from User(db.Model) class, passes initializers
-            db.session.add(self)  # add prepares to persist person object to Users table
+            print("Creating gamer:" + self.name)
+            # creates a person object from Gamer(db.Model) class, passes initializers
+            db.session.add(self)  # add prepares to persist person object to Gamers table
             db.session.commit()  # SqlAlchemy "unit of work pattern" requires a manual commit
+            print("--Created gamer: " + self.name)
             return self
-        except IntegrityError:
+        except IntegrityError as err:
+            print("Exception in creating gamer" + self.name)
+            print(err)
             db.session.remove()
             return None
 
@@ -170,7 +175,7 @@ class User(db.Model):
             "uid": self.uid,
             "dob": self.dob,
             "age": self.age,
-            "posts": [post.read() for post in self.posts]
+            "games": [game.read() for game in self.games]
         }
 
     # CRUD update: updates user name, password, phone
@@ -198,30 +203,32 @@ class User(db.Model):
 
 
 # Builds working data for testing
-def initUsers():
+def initGamers():
+    print("Creating gamers")
     """Create database and tables"""
     app.app_context().push()
     db.create_all()
     """Tester data for table"""
-    u1 = User(name='Thomas Edison', uid='toby', password='123toby', dob=date(1847, 2, 11))
-    u2 = User(name='Nicholas Tesla', uid='niko', password='123niko')
-    u3 = User(name='Alexander Graham Bell', uid='lex', password='123lex')
-    u4 = User(name='Eli Whitney', uid='whit', password='123whit')
-    u5 = User(name='John Mortensen', uid='jm1021', dob=date(1959, 10, 21))
+    u1 = Gamer(name='Thomas Edison', uid='toby', password='123toby', dob=date(1847, 2, 11))
+    u2 = Gamer(name='Nicholas Tesla', uid='niko', password='123niko')
+    u3 = Gamer(name='Alexander Graham Bell', uid='lex', password='123lex')
+    u4 = Gamer(name='Eli Whitney', uid='whit', password='123whit')
+    u5 = Gamer(name='John Mortensen', uid='jm1021', dob=date(1959, 10, 21))
 
-    users = [u1, u2, u3, u4, u5]
+    gamers = [u1, u2, u3, u4, u5]
 
-    """Builds sample user/note(s) data"""
-    for user in users:
+    """Builds sample gamer/game(s) data"""
+    for gamer in gamers:
         try:
-            '''add a few 1 to 4 notes per user'''
+            '''add a few 1 to 4 notes per gamer'''
             for num in range(randrange(1, 4)):
-                note = "#### " + user.name + " note " + str(num) + ". \n Generated by test data."
-                user.posts.append(Post(id=user.id, note=note, image='ncs_logo.png'))
+                gamer.games.append(Games(id=gamer.id, name="Apex", win="Yes", kills=1, deaths=2, playdatetime=date.today()))
             '''add user/post data to table'''
-            user.create()
+            gamer = gamer.create()
+            #print(jsonify(gamer.read()))
         except IntegrityError:
             '''fails with bad or duplicate data'''
             db.session.remove()
-            print(f"Records exist, duplicate email, or error: {user.uid}")
+            print(f"Records exist, duplicate email, or error: {gamer.uid}")
 
+#initGamers()
